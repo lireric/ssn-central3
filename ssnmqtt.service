@@ -1,0 +1,10 @@
+[Unit]
+Description=Process MQTT SSN messages
+After=postgrest.service
+
+[Service]
+ExecStart=/opt/ssn-central/ssn_start.sh
+ExecReload=/bin/kill -SIGUSR1 $MAINPID
+
+[Install]
+WantedBy=multi-user.target
