@@ -10,7 +10,7 @@ SOCKET = require("socket")
 -- global variables:
 LOGLEVEL = logging.DEBUG
 LOGGERGLOBAL = logging.console()
-SSNMQTTCLIENT = nil
+ssnmqttClient = nil
 CONF = nil
 
 -- local chank variables:
@@ -58,12 +58,12 @@ local function ssnOnMessage(mid, topic, payload)
                     end
                 elseif (tokenArraySize == 5) then
                     if (subToken == "device") then
-                        local dev = tonumber(subTokensArray[3], 10)
+                        local dev = subTokensArray[3]
                         local channel = subTokensArray[4]
                         local ts = os.time(os.date("!*t"))
                         if (subTokensArray[5]=="out") then
-                            logger:info("sending device value to DB storing webservice: %d[%s]=%s", dev, channel, payload)
-                            local req_json_str = '[{"td_account":' .. tostring(acc) .. ',"td_object":' .. obj_str .. ',"td_device":' .. tostring(dev) .. ',"td_channel": "' .. channel ..
+                            logger:info("sending device value to DB storing webservice: %s[%s]=%s", dev, channel, payload)
+                            local req_json_str = '[{"td_account":' .. tostring(acc) .. ',"td_object":' .. obj_str .. ',"td_device":"' .. tostring(dev) .. '","td_channel": "' .. channel ..
                             '","td_dev_ts":' .. ts .. ',"td_store_ts":' .. ts .. ',"td_dev_value":' .. tonumber(payload) .. ',"td_action":0}]'
                             logger:debug("req_json_str = %s", req_json_str)
                             local request_body = req_json_str
@@ -105,12 +105,22 @@ local function ssnOnMessage(mid, topic, payload)
     end
 end
 
+local function mqpersistOnConnect(success, rc, str)
+    logger:info("MQTT connected: %s, %d, %s", tostring(success), rc, str)
+    if not success then
+      logger:error("Failed to connect: %d : %s\n", rc, str)
+      return
+    end
+    -- subscribe only to ours topics: 
+    ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/device/+/+/out", 0)
+  end
+
 -- ==================================================================
 local function mainLoop (co)
     while true do
-        logger:debug("Start MQTT consumer")
-        if (SSNMQTTCLIENT) then
-            SSNMQTTCLIENT.client:loop(0,5)
+--        logger:debug("Start MQTT consumer")
+        if (ssnmqttClient) then
+            ssnmqttClient.client:loop(0,5)
             sleep(0.3)
         end
     end
@@ -153,14 +163,14 @@ local function main()
     CONF = loadSSNConf(file_conf_name)
     logger:debug("Application name: %s", CONF.app.name)
   
-    SSNMQTTCLIENT = ssnmqtt:new(nil, CONF.ssn.ACCOUNT, CONF.app.MQTT_HOST, CONF.app.MQTT_PORT, CONF.app.MQTT_BROKER_CLIENT_ID)
-    if (SSNMQTTCLIENT) then
+    ssnmqttClient = ssnmqtt:new(nil, CONF.ssn.ACCOUNT, CONF.app.MQTT_HOST, CONF.app.MQTT_PORT, CONF.app.MQTT_BROKER_CLIENT_ID.."persist")
+    if (ssnmqttClient) then
         logger:info("MQTT client created successefully")
-        SSNMQTTCLIENT.client:login_set(CONF.app.MQTT_BROKER_USER, CONF.app.MQTT_BROKER_PASS)
+        ssnmqttClient.client:login_set(CONF.app.MQTT_BROKER_USER, CONF.app.MQTT_BROKER_PASS)
     
-        SSNMQTTCLIENT:setCallBackOnConnect (ssnOnConnect)
-        SSNMQTTCLIENT:setCallBackOnMessage (ssnOnMessage)
-        SSNMQTTCLIENT:connect()
+        ssnmqttClient:setCallBackOnConnect (mqpersistOnConnect)
+        ssnmqttClient:setCallBackOnMessage (ssnOnMessage)
+        ssnmqttClient:connect()
     else 
         logger:error("MQTT client not created!")
     end

@@ -1,3 +1,3 @@
 #!/bin/sh
-cd /usr/local/lib/lua/5.1/
-lua mqttPersist.lua -c /opt/ssn-central/ssn_kokorino.yaml -l INFO
+cd /home/eric/src/ssn-central3
+lua ssn_control.lua -c /home/eric/src/ssn-central3/ssn_conf.yaml -l INFO

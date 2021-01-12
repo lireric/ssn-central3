@@ -71,6 +71,7 @@ local function main()
     if (CONF.persist and CONF.persist.start == 1) then
         -- Start DB storing module
         logger:info("Start DB storing module")
+        os.execute("lua mqttPersist.lua -c "..file_conf_name.."> /dev/null &")
     end
     if (CONF.bot and CONF.bot.start == 1) then
         -- Start telegram bot module

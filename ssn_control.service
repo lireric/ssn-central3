@@ -1,0 +1,10 @@
+[Unit]
+Description=Process SSN messages
+After=network.target
+
+[Service]
+ExecStart=/home/eric/src/ssn-central3/ssn_start.sh
+ExecReload=/bin/kill -SIGUSR1 $MAINPID
+
+[Install]
+WantedBy=multi-user.target

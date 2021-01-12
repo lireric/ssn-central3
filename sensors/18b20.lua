@@ -95,15 +95,29 @@ local function main()
             -- get data from sysfs:
             logger:debug("dev_id: %s, dev_name: %s", dev.id, dev.name)
             local f = io.open(master_path.."/"..dev.name.."/temperature", "r")
+	    local temp_str
             if (f) then
                 logger:debug("dev file open")
-                local temp_str = f:read("*line")
+                temp_str = f:read("*line")
+	    else
+        	local f = io.open(master_path.."/"..dev.name.."/w1_slave", "r")
+                temp_str = f:read("*line") -- TO DO: check crc...
+                temp_str = f:read("*line")
+		if (temp_str) then
+		    local npos = string.find(temp_str, "%d%d%d%d%d")
+		    if (npos) then
+			temp_str = string.sub(temp_str, npos)
+		    end
+		end
+	    end
                 if (temp_str) then
                     logger:debug("temp_str: %s", temp_str)
-                    local temp_num = tonumber(temp_str, 10) / 1000 -- convert from t*1000 to real float t
-                    ssnmqttClient:publishSensorValue(CONF.sensors.obj, dev.id, 0, temp_num, nil, nil)
+                    local temp_num = tonumber(temp_str, 10)
+		    if (temp_num) then
+			temp_num = temp_num / 1000.0 -- convert from t*1000 to real float t
+                	ssnmqttClient:publishSensorValue(CONF.sensors.obj, dev.id, 0, temp_num, nil, nil)
+		    end
                 end
-            end
         end
         socket.sleep(scan_rate)
     end

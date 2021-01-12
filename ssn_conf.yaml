@@ -1,24 +1,25 @@
 ---
 ssn:
-    ACCOUNT: 2
+    ACCOUNT: 1
 
 app:
-    name: "Test app2"
+    name: "Kokorino app2"
 #    proxy_server: "localhost" # address of the proxy server to MC
     MQTT_PORT: 1883            # MQTT broker TCP port
     MQTT_HOST: "localhost"   # host name for client connections
+#    MQTT_HOST: "192.168.3.150"   # host name for client connections
     MQTT_BROKER_USER: "mosquitto"
     MQTT_BROKER_PASS: "test"
     MQTT_BROKER_CLIENT_ID: "lua_client_mqtt_a64"
 
-#    POSTGRESTURLTELEDATA: "http://192.168.3.6:3000/ssn_teledata"
-    POSTGRESTURLTELEDATA: "http://192.168.1.7:3000/ssn_teledata"
+    POSTGRESTURLTELEDATA: "http://192.168.3.6:3000/ssn_teledata"
+#    POSTGRESTURLTELEDATA: "http://192.168.1.7:3000/ssn_teledata"
     POSTGRESTUSER: "ssn" # TO DO
     POSTGRESTPASS: "123456" # TO DO
 
     LOG_TO_MQTT: 0 # if 1 than send all logging info into /ssn/acc/x/log/ssnmqtt
 
-# serial port settings: (TO DO)
+# serial port settings:
     SerialOn: 0             # 1 - use serial proxy, 0 - not use
     Serialbaudrate: 57600
     SerialPort: '/dev/ttyUSB1'
@@ -30,9 +31,9 @@ app:
 # State the module for persist messages to DB
 # configuration at the app section
 persist:
-    start: 1    # if 1, then start
+    start: 0    # if 1, then start
 
-# telegram bot settings (TO DO)
+# telegram bot settings
 bot:
     start: 0    # if 1, then start
     TEL_TOKEN: ""
@@ -42,7 +43,7 @@ sensors:
     obj: 64
     gpio:
         scan_rate: 1 # 1 seconds interval
-        hart_beat_timeout: 10
+        hart_beat_timeout: 300
         pins:
         -
             id: "pine64-relay-3"
@@ -86,12 +87,12 @@ sensors:
         -
             id: "watchdog_tcp_8.8.8.8_state"
             address: "8.8.8.8"
-            scan_rate: 3 #00
+            scan_rate: 120
             command: "ping"
         -
             id: "watchdog_tcp_mqmain_state"
             address: "192.168.1.5"
-            scan_rate: 30
+            scan_rate: 60
             command: "ping"
         -
             id: "watchdog_tcp_gllir_state"
