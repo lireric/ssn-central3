@@ -148,28 +148,26 @@ function parseTokenArray(rootToken, subTokensArray)
         if (tokenArraySize == 2) then
             if (subToken == "commands") then
                 logger:info("Process  commands")
-                res = {rootToken = rootToken, subToken = subToken}
+                res = {rootToken = rootToken, subToken = subToken, obj = obj}
                 -- TO DO:
             end
         elseif (tokenArraySize == 3) then
             if (subToken == "commands") then
-                res = {rootToken = rootToken, subToken = subToken, command = subTokensArray[3]}
+                res = {rootToken = rootToken, subToken = subToken, command = subTokensArray[3], obj = obj}
             end
         elseif (tokenArraySize == 5) then
             if (subToken == "device") then
                 local dev = subTokensArray[3]
                 local channel = subTokensArray[4]
                 -- action may be "in", "out", "out_json"... etc:
-                res = {rootToken = rootToken, subToken = subToken, device = dev, channel = channel, action = subTokensArray[5]}
+                res = {obj = obj, rootToken = rootToken, subToken = subToken, device = dev, channel = channel, action = subTokensArray[5]}
             end
         end
     end
   elseif (rootToken == "bot") then
-    logger:info("Process  telegram")
+    logger:info("telegram bot")
     local subToken = subTokensArray[2]
     res = {rootToken = rootToken, subToken = subToken}
-    -- TO DO:
-    -- ssnTlgDataProcess(subTokensArray, payload)
   end
   return res
 end

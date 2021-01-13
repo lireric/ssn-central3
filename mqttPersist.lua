@@ -36,68 +36,50 @@ local function ssnOnMessage(mid, topic, payload)
         elseif (rootToken == "obj") then
             logger:info("Process  obj")
             if (subTokensArray) then
-                local tokenArraySize = #subTokensArray
-                logger:debug("ObjDataProcess: %s, subTokensArray size = %d", payload, tokenArraySize)
-                local obj_str = subTokensArray[1]
-                local obj = tonumber(obj_str, 10)
-                logger:debug("ObjDataProcess: obj=%d", obj)
-                local subToken = subTokensArray[2]
-                -- ssnObjDataProcess(subTokensArray, payload)
-                if (tokenArraySize == 2) then
-                    if (subToken == "commands") then
-                        logger:info("Process  commands")
-                        -- TO DO:
-                    end
-                elseif (tokenArraySize == 3) then
-                    if ((subToken == "commands") and (subTokensArray[3]=="ini")) then
-                        -- ssnmqttClient:cmdIniSend(payload, obj)
-                        -- TO DO:
-                    elseif ((subToken == "commands") and (subTokensArray[3]=="json")) then
-                        -- ssnmqttClient:cmdJsonSend(payload, obj)
-                        -- TO DO:
-                    end
-                elseif (tokenArraySize == 5) then
-                    if (subToken == "device") then
-                        local dev = subTokensArray[3]
-                        local channel = subTokensArray[4]
+                local topic_map = parseTokenArray(rootToken, subTokensArray)
+                if (topic_map) then
+                    if (rootToken == "obj" and topic_map.subToken == "device" and topic_map.action == "out") then
+                        logger:info("topic_map rootToken: %s, subToken: %s, device: %s, channel: %d, action: %s", topic_map.rootToken, topic_map.subToken, topic_map.device, topic_map.channel, topic_map.action)
+                        local obj = topic_map.obj
+                        local dev = topic_map.device
+                        local channel = topic_map.channel
                         local ts = os.time(os.date("!*t"))
-                        if (subTokensArray[5]=="out") then
-                            logger:info("sending device value to DB storing webservice: %s[%s]=%s", dev, channel, payload)
-                            local req_json_str = '[{"td_account":' .. tostring(acc) .. ',"td_object":' .. obj_str .. ',"td_device":"' .. tostring(dev) .. '","td_channel": "' .. channel ..
-                            '","td_dev_ts":' .. ts .. ',"td_store_ts":' .. ts .. ',"td_dev_value":' .. tonumber(payload) .. ',"td_action":0}]'
-                            logger:debug("req_json_str = %s", req_json_str)
-                            local request_body = req_json_str
-                            local response_body = {}
-                            local res, code, response_headers = http.request{
-                                url = CONF.app.POSTGRESTURLTELEDATA,
-                                method = "POST",
-                                headers =
-                                  {
-                                      ["Content-Type"] = "application/json";
-                                      ["Content-Length"] = #request_body;
-                                  },
-                                  source = ltn12.source.string(request_body),
-                                  sink = ltn12.sink.table(response_body),
-                            }
-                            if (type(response_body) == "table") then
-                                logger:debug("response_body = %s", table.concat(response_body))
-                            end
-                        elseif (subTokensArray[5]=="in") then
-                        -- ssnmqttClient:cmdSDV(payload, obj, subTokensArray[3], subTokensArray[4])
-                        -- TO DO:
+                        logger:info("sending device value to DB storing webservice: %s[%s]=%s", dev, channel, payload)
+
+                        local req_json_str = '[{"td_account":' .. tostring(acc) .. ',"td_object":' .. tostring(obj) .. ',"td_device":"' .. tostring(dev) .. '","td_channel": "' .. channel ..
+                        '","td_dev_ts":' .. ts .. ',"td_store_ts":' .. ts .. ',"td_dev_value":' .. tonumber(payload) .. ',"td_action":0}]'
+                        logger:debug("req_json_str = %s", req_json_str)
+                        local request_body = req_json_str
+                        local response_body = {}
+
+                        local res, code, response_headers = http.request{
+                            url = CONF.app.POSTGRESTURLTELEDATA,
+                            method = "POST",
+                            headers =
+                              {
+                                  ["Content-Type"] = "application/json";
+                                  ["Content-Length"] = #request_body;
+                              },
+                              source = ltn12.source.string(request_body),
+                              sink = ltn12.sink.table(response_body),
+                        }
+                        if (type(response_body) == "table") then
+                            logger:debug("response_body = %s", table.concat(response_body))
                         end
+
+                    elseif (rootToken == "obj" and topic_map.subToken == "device" and topic_map.action == "out_json") then
+                        logger:debug("out_json: = %s", payload)
+                        -- TO DO ...
+                        -- local teleData = yaml.load(payload)
+                        -- logger:debug("JsonTeledataMsg: = %s", yaml.dump(teleData))
+                    elseif (rootToken == "obj" and topic_map.subToken == "commands") then
+                        logger:info("Process  commands. rootToken: %s, subToken: %s", topic_map.rootToken, topic_map.subToken)
+                        -- TO DO ...
                     end
-                elseif ((subToken == "device") and (subTokensArray[5]=="out_json")) then
-                    -- local teleData = yaml.load(payload)
-                    -- logger:debug("JsonTeledataMsg: = %s", yaml.dump(teleData))
-                    -- if (ssnDB1) then 
-                    -- ssnDB1:saveTeledata(teleData, obj)
-                    -- end
-                    -- TO DO:
                 end
             end
-        elseif (rootToken == "telegram") then
-            logger:info("Process  telegram")
+        elseif (rootToken == "bot") then -- TO DO (or may by in other place...)
+            logger:info("Process  telegram bot")
         -- ssnTlgDataProcess(subTokensArray, payload)
         end
     else
@@ -113,6 +95,8 @@ local function mqpersistOnConnect(success, rc, str)
     end
     -- subscribe only to ours topics: 
     ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/device/+/+/out", 0)
+--    ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/device/+/+/out_json", 0)
+-- TO DO: subscribe to bot topic...
   end
 
 -- ==================================================================
