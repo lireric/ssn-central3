@@ -104,9 +104,9 @@ local function main()
                 temp_str = f:read("*line") -- TO DO: check crc...
                 temp_str = f:read("*line")
 		if (temp_str) then
-		    local npos = string.find(temp_str, "%d%d%d%d%d")
+		    local npos = string.find(temp_str, "t=")
 		    if (npos) then
-			temp_str = string.sub(temp_str, npos)
+			temp_str = string.sub(temp_str, npos+2)
 		    end
 		end
 	    end
