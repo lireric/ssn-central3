@@ -95,20 +95,22 @@ local function main()
             -- get data from sysfs:
             logger:debug("dev_id: %s, dev_name: %s", dev.id, dev.name)
             local f = io.open(master_path.."/"..dev.name.."/temperature", "r")
-	    local temp_str
+    	    local temp_str
             if (f) then
                 logger:debug("dev file open")
                 temp_str = f:read("*line")
-	    else
-        	local f = io.open(master_path.."/"..dev.name.."/w1_slave", "r")
-                temp_str = f:read("*line") -- TO DO: check crc...
-                temp_str = f:read("*line")
-		if (temp_str) then
-		    local npos = string.find(temp_str, "t=")
-		    if (npos) then
-			temp_str = string.sub(temp_str, npos+2)
-		    end
-		end
+	        else
+                local f = io.open(master_path.."/"..dev.name.."/w1_slave", "r")
+                if (f) then
+                    temp_str = f:read("*line") -- TO DO: check crc...
+                    temp_str = f:read("*line")
+                end
+            if (temp_str) then
+                local npos = string.find(temp_str, "t=")
+                if (npos) then
+                    temp_str = string.sub(temp_str, npos+2)
+                end
+            end
 	    end
                 if (temp_str) then
                     logger:debug("temp_str: %s", temp_str)
