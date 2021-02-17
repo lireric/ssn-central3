@@ -99,4 +99,17 @@ sensors:
             address: "192.168.3.150"
             scan_rate: 60
             command: "ping"
+actions:
+    -
+        id: 1
+        expression: '(d(1,2) * d("qqq", 0) + d(12,5)) >= d(3,0)'
+        act:
+            - 'd(2,0), d(3,0) = 100 * 5'
+            - 'd("bot",0) = "Alarm! " .. tostring(d(3,3))'
+    -
+        id: 2
+        expression: '(d(2,3) * d("qqq1", 0) + d(12,5) + d(1,6)) < d(3,0)'
+        act:
+            - 'd(2,0), d(3,0) = 100 * d(1,2)'
+
 ...
