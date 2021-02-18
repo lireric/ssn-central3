@@ -24,12 +24,10 @@ ssndevices = {
 ssnactions = {
     act_array = {},
     dev_array = {},
+    deviceGetValueCallback = nil,
+    deviceSetValueCallback = nil,
     account = 0
 }
-
-function d(dev, channel)
-    return deviceGetValue(dev, channel)
-end
 
 -- Parse string with action formula (e.g. 'd(1,2) * d("qqq", 0) + d(12,5)')
 -- and return table: (dev, channel)
@@ -44,28 +42,33 @@ function parseActionString(s)
 end
 
 
-function ssnactions:new (o, account)
+function ssnactions:new (o, account, deviceGetValueCallback, deviceSetValueCallback)
     logger:debug ("Creating new ssnactions instanse: account=%d", account)
      o = o or {}
      setmetatable(o, self)
      self.__index = self
      self.account = account
+     self.deviceGetValueCallback = deviceGetValueCallback
+     self.deviceSetValueCallback = deviceSetValueCallback
 
-     -- TO DO: fill actions array (from config or hardcode?..)
-     -- TO DO: fill devices array (cache - ?)
      return o
   end
 
-function deviceGetValue(dev, channel)
-    local res = 0
-    logger:debug ("deviceGetValue: dev=%s,  channel = %s", dev, channel)
+function ssnactions:deviceGetValue(dev, channel)
+    local res = nil
+    logger:debug ("deviceGetValue: dev=%s, channel = %s", dev, tostring(channel))
     -- TO DO: get last value from DB or cache...
+    if (self.deviceGetValueCallback) then
+        res = self.deviceGetValueCallback(dev, channel)
+    end
     return res
 end
 
-function deviceSetValue(dev, channel, value)
-    logger:debug ("deviceGetValue: dev=%s,  channel = %s, value = %d", dev, channel, value)
-    -- TO DO: send value to broker...
+function ssnactions:deviceSetValue(dev, channel, value)
+    logger:debug ("deviceGetValue: dev=%s,  channel = %d, value = %s", dev, channel, tostring(value))
+    if (self.deviceSetValueCallback) then
+        self.deviceSetValueCallback(dev, channel, value)
+    end
 end
 
 -- scan all actions with this device and check for triggering on given value:
@@ -101,6 +104,11 @@ function ssnactions:applyActions(act_list)
         logger:debug ("empty act_list -> return without actions")
         return
     end
+    
+    function d(dev, channel)
+        return self.deviceGetValue(self, dev, channel)
+    end
+    
     for i, cur_action in ipairs(act_list) do
         logger:debug ("Action: id =%s", cur_action.id)
         logger:debug ("num actions: %d", #cur_action.actions)
@@ -114,6 +122,7 @@ function ssnactions:applyActions(act_list)
                 logger:debug ("fire_act [%d]: devs cnt = %d, fn=%s", j, #fire_act.act_dev_array, fn_result)
                 for k, fire_dev in ipairs(fire_act.act_dev_array) do
                     logger:debug ("fire_act [%d][%d]: dev[%s, %d] = %s", j, k, fire_dev[1], fire_dev[2], fn_result)
+                    self.deviceSetValue(self, fire_dev[1], fire_dev[2], fn_result)
                 end
             end
         end
@@ -139,7 +148,7 @@ function ssnactions:getDevActions(dev, channel)
 end
 
 -- -----------------------------------------------------------------------------------------------------------------
--- for standalone testing
+-- for standalone testing only:
 
 local function main()
 
@@ -166,7 +175,16 @@ local function main()
 
     logger:info(string.format("ssnactions module -- [Application name: %s]", CONF.app.name))
 
-    local my_ssnactions = ssnactions:new(nil, CONF.ssn.ACCOUNT)
+-- Test callback functions:
+    local function testGetDV(dev, channel)
+        logger:debug ("*** testGetDV: dev=%s, channel=%d", dev, channel)
+        return 123
+    end
+    local function testSetDV(dev, channel, value)
+        logger:debug ("*** testSetDV: dev=%s, channel=%d, value=%s", dev, channel, tostring(value))
+    end
+
+    local my_ssnactions = ssnactions:new(nil, CONF.ssn.ACCOUNT, testGetDV, testSetDV)
 
     -- get parameters from config and fill local array:
     for i,v in ipairs(CONF.actions) do
