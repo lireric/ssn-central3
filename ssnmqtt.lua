@@ -1,6 +1,8 @@
-require "ssnPDU"
 require "ssnconf"
+require "ssnPDU"
 mqtt = require("mosquitto")
+require "ssnUtils"
+
 
 local logger
 if loggerGlobal then
@@ -19,6 +21,8 @@ ssnmqtt = {
   account = 0,
   client = nil,
   mqttID = "0",
+  conn_state = 0, -- connection state: 1 - Ok
+  last_conn_ts = 0,
   callBackMessage = nil,
   callBackOnConnect = nil
 }
@@ -27,14 +31,14 @@ ssnmqtt = {
 
 function ssnmqtt:new (o, account, brokerHost, brokerPort, mqttID)
   logger:debug ("Creating new ssnmqtt instanse: account=%d, brokerHost=%s, brokerPort=%d, mqttID=%s", account, brokerHost, brokerPort, mqttID)
-   o = o or {}
+  o = o or {}
    setmetatable(o, self)
    self.__index = self
    self.account = account
    self.brokerHost = brokerHost or "127.0.0.1"
    self.brokerPort = brokerPort or 1883
    self.mqttID = mqttID
-   self.client = mqtt.new()
+   self.client = mqtt.new(mqttID)
 --   self.publishSensorValue = publishSensorValue
    return o
 end
@@ -131,7 +135,7 @@ end
 --
 function parseTokenArray(rootToken, subTokensArray)
   logger:debug ("parseTokenArray. rootToken=%s, length subTokensArray=%d", rootToken, #subTokensArray)
-  res = nil
+  local res = nil
   if (rootToken == "raw_data") then
     logger:info("Process raw_data")
   --     TO DO:
@@ -181,24 +185,31 @@ end
 
 
 
-function ssnOnConnect(success, rc, str)
-  logger:info("MQTT connected: %s, %d, %s", tostring(success), rc, str)
-  if not success then
-    logger:error("Failed to connect: %d : %s\n", rc, str)
-    return
-  end
-  ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/raw_data", 0)
-  ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/commands", 0)
-  ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/commands/ini", 0)
-  ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/commands/json", 0)
-  ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/device/+/+/in", 0)
-  if (ssnConf.ssn.Use_Tlg_Bot == 1) then
-    -- use Telegram bot module
-    ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/telegram/in", 0)
-    ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/telegram/in/photo", 0)
-  end
-    ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/telegram/out", 0)
+local function ssnOnConnect(success, rc, str)
+    if not success then
+        logger:error("Failed to connect: %d : %s\n", rc, str)
+        ssnmqttClient.conn_state = 0
+        sleep(1.0)
+        logger:debug("try to connect once more...")
+        ssnmqttClient:connect()
+    else
+        ssnmqttClient.conn_state = 1
+        logger:info("MQTT connected: %s, %d, %s", tostring(success), rc, str)
+        ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/raw_data", 0)
+        ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/obj/+/commands", 0)
+        ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/obj/+/commands/ini", 0)
+        ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/obj/+/commands/json", 0)
+        ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/obj/+/device/+/+/in", 0)
+        if (ssnConf.ssn.Use_Tlg_Bot == 1) then
+            -- use Telegram bot module
+            ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/telegram/in", 0)
+            ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/telegram/in/photo", 0)
+        end
+        ssnmqttClient.client:subscribe("/ssn/acc/" .. tostring(ssnmqttClient.account) .. "/telegram/out", 0)
+    end
 end
+
+
 
 
 -- Publish value to device topic:
@@ -280,9 +291,10 @@ end
 -- -------------------------------------------------------------------
 -- for stand alone testing
 
+
 local function main()
 
-  local ssnConf = loadSSNConf()
+  ssnConf = loadSSNConf()
   if not ssnConf then
     logger:fatal(string.format("can't open config. Stop\n"))
     return
@@ -294,12 +306,23 @@ local function main()
 --  ssnmqttClient.client:auth(ssnmqttClient, ssnConf.ssn.MQTT_BROKER_USER, ssnConf.ssn.MQTT_BROKER_PASS)
   ssnmqttClient:setCallBackOnConnect (ssnOnConnect)
   ssnmqttClient:setCallBackOnMessage (ssnOnMessage)
+  ssnmqttClient.client:login_set(ssnConf.app.MQTT_BROKER_USER, ssnConf.app.MQTT_BROKER_PASS)
+
   ssnmqttClient:connect()
---  ssnmqttClient:loop_forever()
+  sleep(1.0)
+  --  ssnmqttClient:loop_forever()
 
   while true do
-    ssnmqttClient.client:loop(0,1)
-    os.execute("sleep 1")
+    -- try to connect if not connected:
+    if (ssnmqttClient.conn_state == 0) then
+      logger:debug("try to connect...")
+      ssnmqttClient:connect()
+      sleep(3.0)
+    else
+      ssnmqttClient.client:loop(0,1)
+      -- os.execute("sleep 1")
+      sleep(1.0)
+    end
   end
 end
 

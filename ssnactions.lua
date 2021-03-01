@@ -3,7 +3,8 @@ require "table"
 require "socket"
 require "ssnUtils"
 
-local CONF
+
+-- e = getfenv()
 
 local logger
 if loggerGlobal then
@@ -41,8 +42,13 @@ function parseActionString(s)
     return w
 end
 
+function ssnactions:fillActions (actions)
+    for i,v in ipairs(actions) do
+        self:addAction(v.id, v.expression, v.act)
+    end
+end
 
-function ssnactions:new (o, account, deviceGetValueCallback, deviceSetValueCallback)
+function ssnactions:new (o, account, deviceGetValueCallback, deviceSetValueCallback, actions)
     logger:debug ("Creating new ssnactions instanse: account=%d", account)
      o = o or {}
      setmetatable(o, self)
@@ -50,6 +56,11 @@ function ssnactions:new (o, account, deviceGetValueCallback, deviceSetValueCallb
      self.account = account
      self.deviceGetValueCallback = deviceGetValueCallback
      self.deviceSetValueCallback = deviceSetValueCallback
+
+     -- get parameters from config and fill local array:
+    for i,v in ipairs(actions) do
+        self:addAction(v.id, v.expression, v.act)
+    end
 
      return o
   end
@@ -64,10 +75,10 @@ function ssnactions:deviceGetValue(dev, channel)
     return res
 end
 
-function ssnactions:deviceSetValue(dev, channel, value)
-    logger:debug ("deviceGetValue: dev=%s,  channel = %d, value = %s", dev, channel, tostring(value))
+function ssnactions:deviceSetValue(dev, channel, value, action_id)
+    logger:debug ("deviceSetValue: dev=%s,  channel = %d, value = %s, action_id = %d", dev, channel, tostring(value), action_id)
     if (self.deviceSetValueCallback) then
-        self.deviceSetValueCallback(dev, channel, value)
+        self.deviceSetValueCallback(dev, channel, value, action_id)
     end
 end
 
@@ -87,7 +98,9 @@ function ssnactions:addAction(id, expression, actions)
     for i, cur_act in ipairs(actions) do
         -- select actioned devices (left part of act expression) and result expression:
         local act_dev_str, act_result = string.match(cur_act, "(.+)=(.+)")
-        act_results_array[i] = {act_dev_array=parseActionString(act_dev_str), act_result_fn = assert(loadstring("return " .. act_result))}
+        logger:debug ("act_dev_str: %s, act_result: %s", tostring(act_dev_str), tostring(act_result))
+        local func, err = loadstring("return " .. tostring(act_result), "act_result_fn" )
+        act_results_array[i] = {act_dev_array=parseActionString(act_dev_str), act_result_fn = func}
     end
     table.insert(self.act_array, {id=id, expression=assert(loadstring("return " .. expression)), 
         actions=actions, dev_cache=parseActionString(expression), act_results_array=act_results_array})
@@ -106,7 +119,7 @@ function ssnactions:applyActions(act_list)
     end
     
     function d(dev, channel)
-        return self.deviceGetValue(self, dev, channel)
+        return self:deviceGetValue(dev, channel)
     end
     
     for i, cur_action in ipairs(act_list) do
@@ -122,7 +135,7 @@ function ssnactions:applyActions(act_list)
                 logger:debug ("fire_act [%d]: devs cnt = %d, fn=%s", j, #fire_act.act_dev_array, fn_result)
                 for k, fire_dev in ipairs(fire_act.act_dev_array) do
                     logger:debug ("fire_act [%d][%d]: dev[%s, %d] = %s", j, k, fire_dev[1], fire_dev[2], fn_result)
-                    self.deviceSetValue(self, fire_dev[1], fire_dev[2], fn_result)
+                    self:deviceSetValue(fire_dev[1], fire_dev[2], fn_result, cur_action.id)
                 end
             end
         end
@@ -151,7 +164,9 @@ end
 -- for standalone testing only:
 
 local function main()
-
+    local CONF
+    print(_VERSION)
+    logger:warn ("This func run only for testing purposes!")
     logger:debug ("t0=%.5f", socket.gettime())
     -- process command line arguments:
     local opts = getopt( arg, "lc" )
@@ -180,20 +195,13 @@ local function main()
         logger:debug ("*** testGetDV: dev=%s, channel=%d", dev, channel)
         return 123
     end
-    local function testSetDV(dev, channel, value)
+    local function testSetDV(dev, channel, value, action_id)
         logger:debug ("*** testSetDV: dev=%s, channel=%d, value=%s", dev, channel, tostring(value))
     end
 
-    local my_ssnactions = ssnactions:new(nil, CONF.ssn.ACCOUNT, testGetDV, testSetDV)
+    local my_ssnactions = ssnactions:new(nil, CONF.ssn.ACCOUNT, testGetDV, testSetDV, CONF.actions)
 
-    -- get parameters from config and fill local array:
-    for i,v in ipairs(CONF.actions) do
-        my_ssnactions:addAction(v.id, v.expression, v.act)
-    end
-
-    -- local my_ssnactions = ssnactions:new(nil, 2)
-    -- local s = 'd(1,2) * d("qqq", 0) + d(12,5)'
-
+    -- s = '(d(1,2) * d("qqq", 0) + d(12,5)) >= d(3,0)'
     -- function test_action1()
     --     local res = true
     --     local f = assert(loadstring("return " .. s))
@@ -216,4 +224,4 @@ local function main()
 
 end
   
-main()
+--main()

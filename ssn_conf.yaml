@@ -3,16 +3,17 @@ ssn:
     ACCOUNT: 1
 
 app:
-    name: "Kokorino app2"
+    name: "Test application"
 #    proxy_server: "localhost" # address of the proxy server to MC
     MQTT_PORT: 1883            # MQTT broker TCP port
-    MQTT_HOST: "localhost"   # host name for client connections
-#    MQTT_HOST: "192.168.3.150"   # host name for client connections
+    MQTT_HOST: "192.168.1.7"   # host name for client connections
+#    MQTT_HOST: "192.168.1.5"   # host name for client connections
     MQTT_BROKER_USER: "mosquitto"
     MQTT_BROKER_PASS: "test"
-    MQTT_BROKER_CLIENT_ID: "lua_client_mqtt_a64"
+    MQTT_BROKER_CLIENT_ID: "lua_client_mqtt_test2"
 
-    POSTGRESTURLTELEDATA: "http://192.168.3.6:3000/ssn_teledata"
+    POSTGRESTURL: "http://192.168.1.7:3300/"
+#    POSTGRESTURLTELEDATA: "http://192.168.3.6:3000/ssn_teledata"
 #    POSTGRESTURLTELEDATA: "http://192.168.1.7:3000/ssn_teledata"
     POSTGRESTUSER: "ssn" # TO DO
     POSTGRESTPASS: "123456" # TO DO

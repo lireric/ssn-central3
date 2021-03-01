@@ -1,7 +1,15 @@
 require "logging.console"
+require "ssnactions"
+
+tmp_loadstring = loadstring -- save loadstring (corrupted in compat53 module)
 require "ssnmqtt"
+loadstring = tmp_loadstring -- restore 
+
 require "ssnconf"
+
 require "ssnUtils"
+-- require "table"
+
 local ltn12 = require "ltn12"
 local yaml = require('yaml')
 local http=require("socket.http");
@@ -11,12 +19,87 @@ SOCKET = require("socket")
 LOGLEVEL = logging.DEBUG
 LOGGERGLOBAL = logging.console()
 ssnmqttClient = nil
-CONF = nil
+local CONF = nil
+local mySSNACTIONS = nil
+
 
 -- local chank variables:
 local logger = LOGGERGLOBAL
 
+
+-- ................................. POSTGREST API
+--
+function callPostgrestData(table, filter, method, request_body)
+  local res, code, response_headers
+  local filter_str = filter or ""
+  local url = CONF.app.POSTGRESTURL .. "/" .. table .. "?" .. filter_str
+  local response_body = {}
+
+  if (method == 'GET' or method == 'DELETE') then
+    res, code, response_headers = http.request {
+      url = url,
+      method = method,
+      headers = {
+          ["Content-Type"] = "application/json",
+          ["Content-Length"] = 0
+      },
+      source = nil,
+      sink = ltn12.sink.table(response_body)
+      }
+  else
+      res, code, response_headers = http.request {
+      url = url,
+      method = method,
+      headers = {
+          ["Content-Type"] = "application/json",
+          ["Content-Length"] = #request_body
+      },
+      source = ltn12.source.string(request_body),
+      sink = ltn12.sink.table(response_body)
+      }
+  end
+  return response_body
+end
+
 -- ==================================================================
+-- Get object id from DB:
+--
+function getObjByDevice(dev)
+  local obj = nil
+  if (dev) then
+    local filter = "account=eq." .. tostring(CONF.ssn.ACCOUNT) .. "&device=eq." .. dev .. "&limit=1"
+
+    local res = callPostgrestData("devices", filter, "GET", nil)
+
+    if (type(res) == "table") then
+        logger:debug("response_body = %s", table.concat(res))
+        obj = res.object
+    end
+  end
+  return obj
+end
+
+function deviceSetValue(acc, obj, dev, channel, value, action_id, dev_ts)
+  logger:debug ("deviceSetValue: acc=%d, obj=%d, dev=%s,  channel = %d, value = %s, action_id = %d", acc, obj, dev, channel, tostring(value), action_id)
+  local ts = os.time(os.date("!*t"))
+  if (not dev_ts) then
+    dev_ts = ts
+  end
+
+  local req_json_str = '[{"td_account":' .. tostring(acc) .. ',"td_object":' .. tostring(obj) .. ',"td_device":"' .. tostring(dev) .. '","td_channel": ' .. channel ..
+  ',"td_dev_ts":' .. dev_ts .. ',"td_store_ts":' .. ts .. ',"td_dev_value":' .. value .. ',"td_action":0}]'
+
+  logger:debug("req_json_str = %s", req_json_str)
+
+  local response = callPostgrestData("ssn_teledata", nil, "POST", req_json_str)
+
+  if (type(response) == "table") then
+      logger:debug("response_body = %s", table.concat(response))
+  else
+    logger:debug("response_body = %s", response)
+  end
+end
+
 local function ssnOnMessage(mid, topic, payload)
     logger:debug("MQTT message. Topic=%s : %s", topic, payload)
     local acc
@@ -43,29 +126,10 @@ local function ssnOnMessage(mid, topic, payload)
                         local obj = topic_map.obj
                         local dev = topic_map.device
                         local channel = topic_map.channel
-                        local ts = os.time(os.date("!*t"))
-                        logger:info("sending device value to DB storing webservice: %s[%s]=%s", dev, channel, payload)
+                        local ts = os.time(os.date("!*t")) -- TO DO...
+                        logger:info("sending device value to DB storing webservice: %s[%s]=%s", dev, channel, payload, ts)
 
-                        local req_json_str = '[{"td_account":' .. tostring(acc) .. ',"td_object":' .. tostring(obj) .. ',"td_device":"' .. tostring(dev) .. '","td_channel": "' .. channel ..
-                        '","td_dev_ts":' .. ts .. ',"td_store_ts":' .. ts .. ',"td_dev_value":' .. tonumber(payload) .. ',"td_action":0}]'
-                        logger:debug("req_json_str = %s", req_json_str)
-                        local request_body = req_json_str
-                        local response_body = {}
-
-                        local res, code, response_headers = http.request{
-                            url = CONF.app.POSTGRESTURLTELEDATA,
-                            method = "POST",
-                            headers =
-                              {
-                                  ["Content-Type"] = "application/json";
-                                  ["Content-Length"] = #request_body;
-                              },
-                              source = ltn12.source.string(request_body),
-                              sink = ltn12.sink.table(response_body),
-                        }
-                        if (type(response_body) == "table") then
-                            logger:debug("response_body = %s", table.concat(response_body))
-                        end
+                        deviceSetValue(acc, obj, dev, channel, tonumber(payload), 0)
 
                     elseif (rootToken == "obj" and topic_map.subToken == "device" and topic_map.action == "out_json") then
                         logger:debug("out_json: = %s", payload)
@@ -88,11 +152,16 @@ local function ssnOnMessage(mid, topic, payload)
 end
 
 local function mqpersistOnConnect(success, rc, str)
-    logger:info("MQTT connected: %s, %d, %s", tostring(success), rc, str)
     if not success then
       logger:error("Failed to connect: %d : %s\n", rc, str)
+      ssnmqttClient.conn_state = 0
+      sleep(1.0)
+      logger:debug("try to connect once more...")
+      ssnmqttClient:connect()
       return
     end
+    ssnmqttClient.conn_state = 1
+    logger:info("MQTT connected: %s, %d, %s", tostring(success), rc, str)
     -- subscribe only to ours topics: 
     ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/device/+/+/out", 0)
 --    ssnmqttClient.client:subscribe("/ssn/acc/"..tostring(ssnmqttClient.account).."/obj/+/device/+/+/out_json", 0)
@@ -119,8 +188,26 @@ local function localLoop()
     end)
   end
 
+-- Callback functions for actions module:
+-- Get device value:
+local function GetDV(dev, channel)
+  logger:debug ("*** testGetDV: dev=%s, channel=%d", dev, channel)
+  return 123
+end
+-- Set device value:
+local function SetDV(dev, channel, value, action_id)
+  logger:debug ("*** testSetDV: dev=%s, channel=%d, value=%s, action_id=%d", dev, channel, tostring(value), action_id)
+  local ts = os.time(os.date("!*t"))
+  -- TO DO: may be not needed?
+  local obj = CONF.sensors.obj
+  ssnmqtt:publishSensorValue(obj, dev, channel, value, ts, action_id)
+end
+
+
 -- ==================================================================
 local function main()
+
+
 
     -- process command line arguments:
     local opts = getopt( arg, "ldc" )
@@ -146,7 +233,8 @@ local function main()
   
     CONF = loadSSNConf(file_conf_name)
     logger:debug("Application name: %s", CONF.app.name)
-  
+
+
     ssnmqttClient = ssnmqtt:new(nil, CONF.ssn.ACCOUNT, CONF.app.MQTT_HOST, CONF.app.MQTT_PORT, CONF.app.MQTT_BROKER_CLIENT_ID.."persist")
     if (ssnmqttClient) then
         logger:info("MQTT client created successefully")
@@ -158,6 +246,13 @@ local function main()
     else 
         logger:error("MQTT client not created!")
     end
+
+
+
+
+    mySSNACTIONS = ssnactions:new(self, CONF.ssn.ACCOUNT, GetDV, SetDV, CONF.actions)
+    -- mySSNACTIONS:fillActions (CONF.actions)
+
 
     mainLoop(localLoop())
   end
