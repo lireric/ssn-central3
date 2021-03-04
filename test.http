@@ -3,7 +3,7 @@ GET http://192.168.1.7:3300/devices?account=eq.1&device=eq.t1&limit=1 HTTP/1.1
 
 ###
 
-GET http://192.168.1.7:3300/ssn_teledata?td_account=eq.1&td_device=eq.t1&limit=10 HTTP/1.1
+GET http://192.168.1.7:3300/ssn_teledata?td_account=eq.1&td_object=eq.1&td_device=eq.t1&order=td_store_ts.desc&limit=10 HTTP/1.1
 
 ###
 

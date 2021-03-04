@@ -1,7 +1,7 @@
 require "logging.console"
 require "ssnactions"
 
-tmp_loadstring = loadstring -- save loadstring (corrupted in compat53 module)
+local tmp_loadstring = loadstring -- save loadstring (corrupted in compat53 module)
 require "ssnmqtt"
 loadstring = tmp_loadstring -- restore 
 
@@ -13,12 +13,13 @@ require "ssnUtils"
 local ltn12 = require "ltn12"
 local yaml = require('yaml')
 local http=require("socket.http");
-SOCKET = require("socket")
+local SOCKET = require("socket")
 
 -- global variables:
 LOGLEVEL = logging.DEBUG
 LOGGERGLOBAL = logging.console()
 ssnmqttClient = nil
+DEVICES = {}
 local CONF = nil
 local mySSNACTIONS = nil
 
@@ -64,21 +65,59 @@ end
 -- ==================================================================
 -- Get object id from DB:
 --
-function getObjByDevice(dev)
-  local obj = nil
-  if (dev) then
-    local filter = "account=eq." .. tostring(CONF.ssn.ACCOUNT) .. "&device=eq." .. dev .. "&limit=1"
+function getDeviceInfo(dev)
+    local obj = nil
+    if (dev) then
+        -- try to get from devices cache:
+        if (DEVICES[dev]) then -- TO DO: make refresh cache...
+            obj = DEVICES[dev]
+            logger:debug("get from cache = %s", logging.tostring(obj))
+        else
+            logger:debug("call web service") 
+            local filter = "account=eq." .. tostring(CONF.ssn.ACCOUNT) .. "&device=eq." .. dev .. "&limit=1"
 
-    local res = callPostgrestData("devices", filter, "GET", nil)
+            local res = callPostgrestData("devices", filter, "GET", nil)
 
-    if (type(res) == "table") then
-        logger:debug("response_body = %s", table.concat(res))
-        obj = res.object
+            if (type(res) == "table") then
+                logger:debug("response_body = %s", logging.tostring(res))
+                -- return device structure, eg:
+                -- {
+                --   "account": 1,
+                --   "object": 1,
+                --   "device": "t1",
+                --   "channel": "0",
+                --   "dev_name": "test-device-1",
+                --   "dev_descr": "Test device 1",
+                --   "dev_scale": "1",
+                --   "dev_unit_id": 2,
+                --   "dev_grp": "s1"
+                -- }
+                obj = yaml.load(res[1])[1]
+                DEVICES[dev] = obj
+               
+            end
+        end
     end
-  end
-  return obj
+    return obj
 end
 
+-- ===================================================================
+-- get last device value from DB
+--
+function deviceGetValue(acc, obj, dev, channel)
+  logger:debug ("deviceGetValue: acc=%d, obj=%d, dev=%s,  channel = %d", acc, obj, dev, channel)
+  local filter = "td_account=eq.".. acc .."&td_object=eq.".. obj .."&td_device=eq.".. dev.."&order=td_store_ts.desc&limit=1"
+  logger:debug ("filter: %s", filter)
+  local response = callPostgrestData("ssn_teledata", filter, "GET", nil)
+  local data = yaml.load(response[1])[1]
+  logger:debug ("data: %s", tostring(data))
+
+  return data.td_dev_value
+end
+
+-- ===================================================================
+-- persist value of the sending device value to DB
+--
 function deviceSetValue(acc, obj, dev, channel, value, action_id, dev_ts)
   logger:debug ("deviceSetValue: acc=%d, obj=%d, dev=%s,  channel = %d, value = %s, action_id = %d", acc, obj, dev, channel, tostring(value), action_id)
   local ts = os.time(os.date("!*t"))
@@ -129,7 +168,7 @@ local function ssnOnMessage(mid, topic, payload)
                         local ts = os.time(os.date("!*t")) -- TO DO...
                         logger:info("sending device value to DB storing webservice: %s[%s]=%s", dev, channel, payload, ts)
 
-                        deviceSetValue(acc, obj, dev, channel, tonumber(payload), 0)
+                        deviceSetValue(acc, obj, dev, channel, tonumber(payload), 0, ts)
 
                     elseif (rootToken == "obj" and topic_map.subToken == "device" and topic_map.action == "out_json") then
                         logger:debug("out_json: = %s", payload)
@@ -192,14 +231,25 @@ local function localLoop()
 -- Get device value:
 local function GetDV(dev, channel)
   logger:debug ("*** testGetDV: dev=%s, channel=%d", dev, channel)
-  return 123
+  local dev_info = getDeviceInfo(dev)
+  local obj = CONF.sensors.obj -- TO DO: may be generate exception if don't get device?
+  if (dev_info) then
+      obj = dev_info.object
+  end
+  local res = deviceGetValue(CONF.ssn.ACCOUNT, obj, dev, channel)
+  logger:debug ("Dev. value=%f", res)
+  return res
 end
+
 -- Set device value:
 local function SetDV(dev, channel, value, action_id)
   logger:debug ("*** testSetDV: dev=%s, channel=%d, value=%s, action_id=%d", dev, channel, tostring(value), action_id)
   local ts = os.time(os.date("!*t"))
-  -- TO DO: may be not needed?
-  local obj = CONF.sensors.obj
+  local dev_info = getDeviceInfo(dev)
+  local obj = CONF.sensors.obj -- TO DO: may be generate exception if don't get device?
+  if (dev_info) then
+      obj = dev_info.object
+  end
   ssnmqtt:publishSensorValue(obj, dev, channel, value, ts, action_id)
 end
 
@@ -251,8 +301,18 @@ local function main()
 
 
     mySSNACTIONS = ssnactions:new(self, CONF.ssn.ACCOUNT, GetDV, SetDV, CONF.actions)
-    -- mySSNACTIONS:fillActions (CONF.actions)
 
+    -- TEST
+    -- logger:debug("A")
+    -- local a = getDeviceInfo("t1")
+    -- logger:debug("dev %s", logging.tostring(a))
+    -- logger:debug("dev obj=%d, name=%s", a.object, a.dev_name)
+    -- logger:debug("B")
+    -- local b = getDeviceInfo("t1")
+
+    -- -- a = deviceGetValue(1, 1, "t1", 0)
+    -- a = GetDV("t1", 0)
+    -- logger:debug("a=%f", a)
 
     mainLoop(localLoop())
   end

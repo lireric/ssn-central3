@@ -57,6 +57,11 @@ function ssnactions:new (o, account, deviceGetValueCallback, deviceSetValueCallb
      self.deviceGetValueCallback = deviceGetValueCallback
      self.deviceSetValueCallback = deviceSetValueCallback
 
+    local function d(dev, channel)
+        return self:deviceGetValue(dev, channel)
+    end
+    self.d = d
+
      -- get parameters from config and fill local array:
     for i,v in ipairs(actions) do
         self:addAction(v.id, v.expression, v.act)
@@ -93,16 +98,25 @@ end
 --
 function ssnactions:addAction(id, expression, actions)
     logger:info ("addAction: id=%s", id)
+    d = self.d
     -- fill actions results array:
     local act_results_array = {}
     for i, cur_act in ipairs(actions) do
         -- select actioned devices (left part of act expression) and result expression:
         local act_dev_str, act_result = string.match(cur_act, "(.+)=(.+)")
         logger:debug ("act_dev_str: %s, act_result: %s", tostring(act_dev_str), tostring(act_result))
-        local func, err = loadstring("return " .. tostring(act_result), "act_result_fn" )
+        local func, err = pcall(loadstring("return " .. tostring(act_result), "act_result_fn" ))
+        if (not func) then
+            logger:error ("act_result expression error: %s [%s]", err, act_result)
+        end
         act_results_array[i] = {act_dev_array=parseActionString(act_dev_str), act_result_fn = func}
     end
-    table.insert(self.act_array, {id=id, expression=assert(loadstring("return " .. expression)), 
+
+    local func, err = pcall(loadstring("return " .. tostring(expression), "act_expression_fn" ))
+    if (not func) then
+        logger:error ("act_expression error: %s [%s]", err, expression)
+    end
+    table.insert(self.act_array, {id=id, expression=func, 
         actions=actions, dev_cache=parseActionString(expression), act_results_array=act_results_array})
     -- self.act_array[id] = action
     logger:info ("Actions: %d", #self.act_array)
@@ -118,9 +132,11 @@ function ssnactions:applyActions(act_list)
         return
     end
     
-    function d(dev, channel)
-        return self:deviceGetValue(dev, channel)
-    end
+    d = self.d
+
+    -- function d(dev, channel)
+    --     return self:deviceGetValue(dev, channel)
+    -- end
     
     for i, cur_action in ipairs(act_list) do
         logger:debug ("Action: id =%s", cur_action.id)
