@@ -117,7 +117,12 @@ local function main()
                     local temp_num = tonumber(temp_str, 10)
 		    if (temp_num) then
 			temp_num = temp_num / 1000.0 -- convert from t*1000 to real float t
-                	ssnmqttClient:publishSensorValue(CONF.sensors.obj, dev.id, 0, temp_num, nil, nil)
+                -- workaround: SKIP ERROR DATA
+                if (temp_num == 0 or temp_num == -0.062) then
+                    logger:info("skip value storing: %d", temp_num)
+                else
+                    ssnmqttClient:publishSensorValue(CONF.sensors.obj, dev.id, 0, temp_num, nil, nil)
+                end
 		    end
                 end
         end

@@ -168,7 +168,14 @@ local function ssnOnMessage(mid, topic, payload)
                         local ts = os.time(os.date("!*t")) -- TO DO...
                         logger:info("sending device value to DB storing webservice: %s[%s]=%s", dev, channel, payload, ts)
 
-                        deviceSetValue(acc, obj, dev, channel, tonumber(payload), 0, ts)
+                        -- try to apply actions if thay exists in this dev/chan
+                        if (mySSNACTIONS) then
+                          mySSNACTIONS:applyActions(mySSNACTIONS:getDevActions(dev, channel))
+                        end
+
+                        if (CONF.app.POSTGRESTURL) then
+                          deviceSetValue(acc, obj, dev, channel, tonumber(payload), 0, ts)
+                        end
 
                     elseif (rootToken == "obj" and topic_map.subToken == "device" and topic_map.action == "out_json") then
                         logger:debug("out_json: = %s", payload)
@@ -303,16 +310,16 @@ local function main()
     mySSNACTIONS = ssnactions:new(self, CONF.ssn.ACCOUNT, GetDV, SetDV, CONF.actions)
 
     -- TEST
-    -- logger:debug("A")
-    -- local a = getDeviceInfo("t1")
-    -- logger:debug("dev %s", logging.tostring(a))
-    -- logger:debug("dev obj=%d, name=%s", a.object, a.dev_name)
-    -- logger:debug("B")
-    -- local b = getDeviceInfo("t1")
+    logger:debug("A")
+    local a = getDeviceInfo("t1")
+    logger:debug("dev %s", logging.tostring(a))
+    logger:debug("dev obj=%d, name=%s", a.object, a.dev_name)
+    logger:debug("B")
+    local b = getDeviceInfo("t1")
 
-    -- -- a = deviceGetValue(1, 1, "t1", 0)
-    -- a = GetDV("t1", 0)
-    -- logger:debug("a=%f", a)
+    -- a = deviceGetValue(1, 1, "t1", 0)
+    a = GetDV("t1", 0)
+    logger:debug("a=%f", a)
 
     mainLoop(localLoop())
   end

@@ -142,12 +142,18 @@ function ssnactions:applyActions(act_list)
         logger:debug ("Action: id =%s", cur_action.id)
         logger:debug ("num actions: %d", #cur_action.actions)
         logger:debug ("devices cache size: %d", #cur_action.dev_cache)
-        local res = cur_action.expression()
+        local res, err = pcall(cur_action.expression())
+        if (err) then
+            logger:info ("action [%s] expression return error: %s", cur_action.id, err)
+        end
         logger:debug ("cur_action result = %s", tostring(res))
         if (res) then
             logger:info ("fire action!")
             for j, fire_act in ipairs(cur_action.act_results_array) do
-                local fn_result = tostring(fire_act.act_result_fn()) -- TO DO: check types..
+                local fn_result, err = pcall(tostring(fire_act.act_result_fn())) -- TO DO: check types..
+                if (err) then
+                    logger:info ("action [%s] fire_act return error: %s", cur_action.id, err)
+                end
                 logger:debug ("fire_act [%d]: devs cnt = %d, fn=%s", j, #fire_act.act_dev_array, fn_result)
                 for k, fire_dev in ipairs(fire_act.act_dev_array) do
                     logger:debug ("fire_act [%d][%d]: dev[%s, %d] = %s", j, k, fire_dev[1], fire_dev[2], fn_result)

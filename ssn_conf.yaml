@@ -12,7 +12,7 @@ app:
     MQTT_BROKER_PASS: "test"
     MQTT_BROKER_CLIENT_ID: "lua_client_mqtt_test2"
 
-    POSTGRESTURL: "http://192.168.1.7:3300/"
+    POSTGRESTURL: "http://192.168.1.7:3300/" # if NULL then do not storing to DB (but process Actions!)
 #    POSTGRESTURLTELEDATA: "http://192.168.3.6:3000/ssn_teledata"
 #    POSTGRESTURLTELEDATA: "http://192.168.1.7:3000/ssn_teledata"
     POSTGRESTUSER: "ssn" # TO DO
@@ -32,7 +32,7 @@ app:
 # State the module for persist messages to DB
 # configuration at the app section
 persist:
-    start: 0    # if 1, then start
+    start: 1    # if 1, then start
 
 # telegram bot settings
 bot:
@@ -103,7 +103,7 @@ sensors:
 actions:
     -
         id: 1
-        expression: '(d(1,2) * d("qqq", 0) + d(12,5)) >= d(3,0)'
+        expression: '(d(t1,0) * d("qqq", 0) + d(12,5)) >= d(3,0)'
         act:
             - 'd(2,0), d(3,0) = 100 * 5'
             - 'd("bot",0) = "Alarm! " .. tostring(d(3,3))'
