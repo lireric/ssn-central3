@@ -92,7 +92,11 @@ function getDeviceInfo(dev)
                 --   "dev_unit_id": 2,
                 --   "dev_grp": "s1"
                 -- }
-                obj = yaml.load(res[1])[1]
+                if (res[1]) then
+                  obj = yaml.load(res[1])[1]
+                else
+                  obj = nil
+                end
                 DEVICES[dev] = obj
                
             end
@@ -310,16 +314,16 @@ local function main()
     mySSNACTIONS = ssnactions:new(self, CONF.ssn.ACCOUNT, GetDV, SetDV, CONF.actions)
 
     -- TEST
-    logger:debug("A")
-    local a = getDeviceInfo("t1")
-    logger:debug("dev %s", logging.tostring(a))
-    logger:debug("dev obj=%d, name=%s", a.object, a.dev_name)
-    logger:debug("B")
-    local b = getDeviceInfo("t1")
+    -- logger:debug("A")
+    -- local a = getDeviceInfo("t1")
+    -- logger:debug("dev %s", logging.tostring(a))
+    -- logger:debug("dev obj=%d, name=%s", a.object, a.dev_name)
+    -- logger:debug("B")
+    -- local b = getDeviceInfo("t1")
 
-    -- a = deviceGetValue(1, 1, "t1", 0)
-    a = GetDV("t1", 0)
-    logger:debug("a=%f", a)
+    -- -- a = deviceGetValue(1, 1, "t1", 0)
+    -- a = GetDV("t1", 0)
+    -- logger:debug("a=%f", a)
 
     mainLoop(localLoop())
   end

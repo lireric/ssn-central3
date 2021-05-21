@@ -63,8 +63,10 @@ function ssnactions:new (o, account, deviceGetValueCallback, deviceSetValueCallb
     self.d = d
 
      -- get parameters from config and fill local array:
-    for i,v in ipairs(actions) do
-        self:addAction(v.id, v.expression, v.act)
+    if (actions) then
+        for i,v in ipairs(actions) do
+            self:addAction(v.id, v.expression, v.act)
+        end
     end
 
      return o
