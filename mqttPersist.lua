@@ -11,7 +11,10 @@ require "ssnUtils"
 -- require "table"
 
 local ltn12 = require "ltn12"
-local yaml = require('yaml')
+--local yaml = require('yaml')
+local yaml = require('tinyyaml')
+yaml.load = yaml.parse -- adopt tinyyaml api
+
 local http=require("socket.http");
 local SOCKET = require("socket")
 
@@ -268,20 +271,11 @@ end
 -- ==================================================================
 local function main()
 
-
-
     -- process command line arguments:
     local opts = getopt( arg, "ldc" )
     if (opts.l) then
-      if (opts.l == 'DEBUG') then
-        LOGLEVEL = logging.DEBUG
-      elseif (opts.l == 'INFO') then
-        LOGLEVEL = logging.INFO
-      elseif (opts.l == 'WARN') then
-        LOGLEVEL = logging.WARN
-      elseif (opts.l == 'ERROR') then
-        LOGLEVEL = logging.ERROR
-      end
+      LOGLEVEL = opts.l
+      logger:info("set log level from command args: %s", opts.l)
     end
   
     LOGGERGLOBAL:setLevel(LOGLEVEL)

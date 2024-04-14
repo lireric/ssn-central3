@@ -1,4 +1,4 @@
-require "socket"
+local socket = require "socket"
 
 -- From http://lua-users.org/wiki/AlternativeGetOpt
 -- getopt, POSIX style command line argument parser

@@ -41,3 +41,6 @@ luac.out
 
 *.old
 test.http
+test.http
+test.lua
+nodemcu/test_init.lua

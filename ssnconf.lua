@@ -1,6 +1,7 @@
 -- load SSN configuration file in yaml format
 
-local yaml = require('yaml')
+--local yaml = require('yaml')
+local yaml = require('tinyyaml')
 
 local logger
 
@@ -12,8 +13,7 @@ else
 end
 
 local function read_file(path)
-    local open = io.open
-    local file = open(path, "r") -- r read mode and b binary mode
+    file = io.open(path, "r") -- r read mode and b binary mode
     if not file then
         return nil
     end
@@ -30,11 +30,16 @@ function loadSSNConf(file_name)
         fileConfName = "ssn_conf.yaml"
     end
 
+    logger:info("load config from %s", fileConfName)
+
     local fileConfigData = read_file(fileConfName)
+
     if not fileConfigData then
         logger:error("can't open configuration file '%s'\n", fileConfName)
         return;
     end
+
+    logger:debug("config:\n%s", fileConfigData)
     --  local ssnConf = yaml.load(fileConfigData)
-    return yaml.load(fileConfigData)
+    return yaml.parse(fileConfigData) -- yaml.eval(fileConfigData)
 end

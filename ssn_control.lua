@@ -7,7 +7,9 @@ require "ssnmqtt"
 require "ssnconf"
 require "ssnUtils"
 local ltn12 = require "ltn12"
-local yaml = require('yaml')
+--local yaml = require('yaml')
+local yaml = require('tinyyaml')
+
 local http=require("socket.http");
 SOCKET = require("socket")
 
@@ -46,11 +48,17 @@ local function localLoop()
 -- ==================================================================
 local function main()
 
+    logger:info("Starting SSN")
+
     -- process command line arguments:
     local opts = getopt( arg, "ldc" )
     if (opts.l) then
-        LOGLEVEL = get_log_level_from_str(opts.l)
+        -- LOGLEVEL = get_log_level_from_str(opts.l)
+        LOGLEVEL = opts.l
+        logger:info("set log level from command args: %s", opts.l)
     end
+
+    logger:info("Loglevel=%s", LOGLEVEL)
   
     LOGGERGLOBAL:setLevel(LOGLEVEL)
   
@@ -68,10 +76,12 @@ local function main()
     logger:info("Application name: %s, account: %d", CONF.app.name, CONF.ssn.ACCOUNT)
     logger:info("Starting modules ...")
 
+    logger:info("persist=%s", CONF.persist.start)
+
     if (CONF.persist and CONF.persist.start == 1) then
         -- Start DB storing module
         logger:info("Start DB storing module")
-        os.execute("lua mqttPersist.lua -c "..file_conf_name.."> /dev/null &")
+        os.execute("lua mqttPersist.lua -c "..file_conf_name) -- > /dev/null &")
     end
     if (CONF.bot and CONF.bot.start == 1) then
         -- Start telegram bot module

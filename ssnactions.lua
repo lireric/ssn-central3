@@ -1,7 +1,7 @@
 require "ssnconf"
 require "table"
-require "socket"
-require "ssnUtils"
+--require "socket"
+--require "ssnUtils"
 
 
 -- e = getfenv()
